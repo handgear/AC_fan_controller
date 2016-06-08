@@ -19,7 +19,7 @@
 // Change these two numbers to the pins connected to your encoder.
 //   With ENCODER_DO_NOT_USE_INTERRUPTS, no interrupts are ever
 //   used, even if the pin has interrupt capability
-Encoder myEnc(4, 5);
+Encoder myEnc(19, 42);
 //   avoid using pins with LEDs attached
 
 void setup() {
