@@ -4,7 +4,7 @@
 #include <Encoder.h>
 #include <DHT.h>
 
-#define TEM_THRESHOLD 1 //Temperature threshold
+#define TEM_THRESHOLD 10 //Temperature threshold
 #define HUM_THRESHOLD 3 //Humidity threshold
 //=========pin connections===========//
 const uint8_t fan_pin[5] = {22, 24, 26, 28, 30};
@@ -21,12 +21,12 @@ const uint8_t clockPin = 40; //SH_CP of 74HC595
 const uint8_t dataPin = 38; //DS of 74HC595
 
 //=========global variables===========//
-float humidity[5]; //uint8_t will be fine. auto cascading
-float temperature[5];
-float humidity_old[5]; //uint8_t will be fine. auto cascading
-float temperature_old[5];
+uint8_t humidity[5]; //uint8_t will be fine. auto cascading
+int16_t temperature[5];
+uint8_t humidity_old[5]; //uint8_t will be fine. auto cascading
+int16_t temperature_old[5];
 uint8_t humidity_set[5];
-float temperature_set[5];
+int16_t temperature_set[5];
 
 uint8_t LedData1 = 0;
 uint8_t LedData2 = 0;
@@ -115,10 +115,15 @@ void update_LCD(){
 	lcd.clear();
 	lcd.print("Fan"); lcd.print(lcd_page, DEC);
 	lcd.setCursor(6, 0); lcd.print(temperature_old[lcd_page-1]); 
+	lcd.setCursor(8, 0); lcd.print(".");
+	lcd.setCursor(9, 0); lcd.print(temperature_old[lcd_page-1] % 10); 
 	lcd.setCursor(10, 0); lcd.print("C");
 	lcd.setCursor(13, 0); lcd.print(humidity_old[lcd_page-1]); 
 	lcd.setCursor(15, 0); lcd.print("%");
-	lcd.setCursor(6, 1); lcd.print(temperature_set[lcd_page-1]); 
+
+	lcd.setCursor(6, 1); lcd.print(temperature_set[lcd_page-1]);
+	lcd.setCursor(8, 1); lcd.print(".");
+	lcd.setCursor(9, 1); lcd.print(temperature_set[lcd_page-1] % 10); 
 	lcd.setCursor(10, 1); lcd.print("C");
 	lcd.setCursor(13, 1); lcd.print(humidity_set[lcd_page-1]); 
 	lcd.setCursor(15, 1); lcd.print("%");
@@ -163,19 +168,19 @@ void fan_speed_control(){ //interrupt by zero crossing
 //  	}
 }
 void check_encoder(){
-	encoder_pos_L = encoder_L.read(); //temperature encoder
-	if(encoder_pos_old_L != encoder_pos_L){
-		temperature_set[lcd_page-1] += (float)encoder_pos_L; //colud need to be divide by 2
-		encoder_pos_old_L = encoder_pos_L;
-		lcd_data_changed = 1;
-	}
+	// encoder_pos_L = encoder_L.read(); //temperature encoder
+	// if(encoder_pos_old_L != encoder_pos_L){
+	// 	temperature_set[lcd_page-1] += (float)encoder_pos_L; //colud need to be divide by 2
+	// 	encoder_pos_old_L = encoder_pos_L;
+	// 	lcd_data_changed = 1;
+	// }
 
-	encoder_pos_R = encoder_R.read(); //humidity encoder
-	if(encoder_pos_old_R != encoder_pos_R){
-		 humidity_set[lcd_page-1] += (float)encoder_pos_R;
-		encoder_pos_old_R = encoder_pos_R;
-		lcd_data_changed = 1;
-	}
+	// encoder_pos_R = encoder_R.read(); //humidity encoder
+	// if(encoder_pos_old_R != encoder_pos_R){
+	// 	 humidity_set[lcd_page-1] += (float)encoder_pos_R;
+	// 	encoder_pos_old_R = encoder_pos_R;
+	// 	lcd_data_changed = 1;
+	// }
 
 }
 void check_button(){
@@ -225,16 +230,16 @@ void check_button(){
 
 }
 void read_sensor(){//use _old values for display 
-	humidity[0] = sensor1.readHumidity();
-	humidity[1] = sensor2.readHumidity();
-	humidity[2] = sensor3.readHumidity();
-	humidity[3] = sensor4.readHumidity();
-	humidity[4] = sensor5.readHumidity();
-	temperature[0] = sensor1.readTemperature();
-	temperature[1] = sensor2.readTemperature();
-	temperature[2] = sensor3.readTemperature();
-	temperature[3] = sensor4.readTemperature();
-	temperature[4] = sensor5.readTemperature();
+	humidity[0] = (int)sensor1.readHumidity();
+	humidity[1] = (int)sensor2.readHumidity();
+	humidity[2] = (int)sensor3.readHumidity();
+	humidity[3] = (int)sensor4.readHumidity();
+	humidity[4] = (int)sensor5.readHumidity();
+	temperature[0] = (int)(sensor1.readTemperature()*10);
+	temperature[1] = (int)(sensor2.readTemperature()*10);
+	temperature[2] = (int)(sensor3.readTemperature()*10);
+	temperature[3] = (int)(sensor4.readTemperature()*10);
+	temperature[4] = (int)(sensor5.readTemperature()*10);
 
 	for(int i=0; i<5; i++){//need to check overflow error
 		//the conditions would need to be fixed
