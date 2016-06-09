@@ -82,7 +82,7 @@ void setup(){
  	lcd.backlight();
   	lcd.print("test");
  	update_LCD();
- 	Timer1.initialize(2000000); //set a timer for 2sec
+ 	Timer1.initialize(5000000); //set a timer for 5sec
   	Timer1.attachInterrupt(read_sensor); //call read_sensor()
 }
 
@@ -168,19 +168,19 @@ void fan_speed_control(){ //interrupt by zero crossing
 //  	}
 }
 void check_encoder(){
-	// encoder_pos_L = encoder_L.read(); //temperature encoder
-	// if(encoder_pos_old_L != encoder_pos_L){
-	// 	temperature_set[lcd_page-1] += (float)encoder_pos_L; //colud need to be divide by 2
-	// 	encoder_pos_old_L = encoder_pos_L;
-	// 	lcd_data_changed = 1;
-	// }
+	encoder_pos_L = encoder_L.read(); //temperature encoder
+	if(encoder_pos_old_L != encoder_pos_L){
+		temperature_set[lcd_page-1] += encoder_pos_L; //colud need to be divide by 2
+		encoder_pos_old_L = encoder_pos_L;
+		lcd_data_changed = 1;
+	}
 
-	// encoder_pos_R = encoder_R.read(); //humidity encoder
-	// if(encoder_pos_old_R != encoder_pos_R){
-	// 	 humidity_set[lcd_page-1] += (float)encoder_pos_R;
-	// 	encoder_pos_old_R = encoder_pos_R;
-	// 	lcd_data_changed = 1;
-	// }
+	encoder_pos_R = encoder_R.read(); //humidity encoder
+	if(encoder_pos_old_R != encoder_pos_R){
+		 humidity_set[lcd_page-1] += encoder_pos_R;
+		encoder_pos_old_R = encoder_pos_R;
+		lcd_data_changed = 1;
+	}
 
 }
 void check_button(){
