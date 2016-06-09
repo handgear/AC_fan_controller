@@ -42,13 +42,18 @@ volatile uint8_t zero_cross_state = LOW;
 volatile uint8_t lcd_page = 1; //1~5
 volatile uint8_t fan_state[5] = {0,0,0,0,0}; //can be 0(off),1,2,3(full)
 volatile uint8_t fan_state_old[5] = {0,0,0,0,0};
+volatile uint8_t fan_speed_buf[5] = {0,0,0,0,0};
 volatile uint8_t state = LOW;
 volatile uint8_t divider = LOW; //120Hz to 60Hz
+volatile int32_t encoder_pos_L = 0;
+volatile int32_t encoder_pos_R = 0;
+volatile int32_t encoder_pos_old_L = 0;
+volatile int32_t encoder_pos_old_R = 0;
 
 //=========object define===========//
 LiquidCrystal_I2C lcd(0x3F,16,2);
-Encoder left_encoder(18, 41); //18 == interrupt pin
-Encoder right_encoder(19, 42); //19 == interrupt pin
+Encoder encoder_L(18, 41); //18 == interrupt pin //temperature encoder
+Encoder encoder_R(19, 42); //19 == interrupt pin //humidity encoder
 DHT sensor1(sensor_pin[0], DHT22);
 DHT sensor2(sensor_pin[1], DHT22);
 DHT sensor3(sensor_pin[2], DHT22);
@@ -84,6 +89,7 @@ void loop(){
 	// read_sensor();
 
 	check_button();
+	check_encoder();
 
 	if(fan_state_changed()){
 		update_led();
@@ -96,10 +102,6 @@ void loop(){
 	}
 	
 
-	// digitalWrite(latchPin, 0);
-	// shiftOut(dataPin, clockPin, LedData2);
-	// shiftOut(dataPin, clockPin, LedData1);
-	// digitalWrite(latchPin, 1);
 
 	
 	// delay(100);
@@ -139,8 +141,30 @@ void INT_page_button(){ //need debouncing
 void fan_speed_control(){ //interrupt by zero crossing 
 	divider = !divider;
   	if(divider == HIGH){
-    	state = !state;  
+  		for(uint8_t i; i<5; i++){
+  			fan_speed_buf[i] = fan_state_old[i];
+  		}
+  		
+
+
+    	// state = !state;  
   	}
+}
+void check_encoder(){
+	encoder_pos_L = encoder_L.read(); //temperature encoder
+	if(encoder_pos_old_L != encoder_pos_L){
+		temperature_set[lcd_page-1] += encoder_pos_L; //colud need to be divide by 2
+		encoder_pos_old_L = encoder_pos_L;
+		lcd_data_changed = 1;
+	}
+
+	encoder_pos_R = encoder_R.read(); //humidity encoder
+	if(encoder_pos_old_R != encoder_pos_R){
+		 humidity_set[lcd_page-1] += encoder_pos_R;
+		encoder_pos_old_R = encoder_pos_R;
+		lcd_data_changed = 1;
+	}
+
 }
 void check_button(){
 	digitalWrite(mux_pin_s0, LOW);
