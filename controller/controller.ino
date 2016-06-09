@@ -1,3 +1,4 @@
+#include <TimerOne.h>
 #include <Wire.h> 
 #include <LiquidCrystal_I2C.h>
 #include <Encoder.h>
@@ -33,7 +34,7 @@ uint8_t button_state[6]; //fan 1,2,3,4,5 / fan page select
 uint8_t button_state_old[6]; //fan 1,2,3,4,5 / fan page select
 
 uint8_t sensor_changed = 0;
-uint8_t lcd_page_changed = 0;
+uint8_t lcd_data_changed = 0;
 // uint8_t fan_state_changed = 0;
 
 //use volatile for interrupt variables
@@ -75,6 +76,8 @@ void setup(){
  	lcd.backlight();
   	lcd.print("test");
  	update_LCD();
+ 	Timer1.initialize(2000000); //set a timer for 2sec
+  	Timer1.attachInterrupt(read_sensor); //call read_sensor()
 }
 
 void loop(){
@@ -87,9 +90,9 @@ void loop(){
 		update_LCD();
 	}
 
-	if(lcd_page_changed == 1){
+	if(lcd_data_changed == 1){
 		update_LCD();
-		lcd_page_changed = 0;
+		lcd_data_changed = 0;
 	}
 	
 
@@ -131,7 +134,7 @@ void INT_page_button(){ //need debouncing
 			lcd_page = 1;
 	}
 	last_interrupt_time = interrupt_time;
-	lcd_page_changed = 1;
+	lcd_data_changed = 1;
 }
 void fan_speed_control(){ //interrupt by zero crossing 
 	divider = !divider;
@@ -193,12 +196,12 @@ void read_sensor(){//use _old values for display
 		if(humidity[i] - humidity_old[i] > HUM_THRESHOLD || 
 			humidity[i] - humidity_old[i] < HUM_THRESHOLD){
 			humidity_old[i] = humidity[i];
-			sensor_changed = 1;
+			lcd_data_changed = 1;
 		}
 		if(temperature[i] - temperature_old[i] > TEM_THRESHOLD || 
 			temperature[i] - temperature_old[i] < TEM_THRESHOLD){
 			temperature_old[i] = temperature[i];
-			sensor_changed = 1;
+			lcd_data_changed = 1;
 		}
 	}
 }
