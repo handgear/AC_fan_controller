@@ -1,3 +1,4 @@
+//#define ENCODER_DO_NOT_USE_INTERRUPTS
 #include <TimerOne.h>
 #include <Wire.h> 
 #include <LiquidCrystal_I2C.h>
@@ -21,12 +22,12 @@ const uint8_t clockPin = 40; //SH_CP of 74HC595
 const uint8_t dataPin = 38; //DS of 74HC595
 
 //=========global variables===========//
-uint8_t humidity[5]; //uint8_t will be fine. auto cascading
-int16_t temperature[5];
-uint8_t humidity_old[5]; //uint8_t will be fine. auto cascading
-int16_t temperature_old[5];
-uint8_t humidity_set[5];
-int16_t temperature_set[5];
+int8_t humidity[5]; 
+int32_t temperature[5];
+int8_t humidity_old[5];
+int32_t temperature_old[5];
+int8_t humidity_set[5] = {41,42,43,44,45};
+int32_t temperature_set[5] = {10,260,270,280,290};
 
 uint8_t LedData1 = 0;
 uint8_t LedData2 = 0;
@@ -36,6 +37,8 @@ uint8_t button_state_old[6]; //fan 1,2,3,4,5 / fan page select
 uint8_t sensor_changed = 0;
 uint8_t lcd_data_changed = 0;
 // uint8_t fan_state_changed = 0;
+int32_t enc_temp1; //for debuging
+int32_t enc_temp2;
 
 //use volatile for interrupt variables
 volatile uint8_t zero_cross_state = LOW;
@@ -62,7 +65,7 @@ DHT sensor4(sensor_pin[3], DHT22);
 DHT sensor5(sensor_pin[4], DHT22);
 
 void setup(){
-	// pinMode(fanPin[0], OUTPUT); 
+	// pinMode(fan_pin[0], OUTPUT); 
   	pinMode(zero_cross_pin, INPUT_PULLUP);
   	attachInterrupt(digitalPinToInterrupt(zero_cross_pin), fan_speed_control, FALLING);
   	pinMode(page_button, INPUT_PULLUP);
@@ -82,6 +85,7 @@ void setup(){
  	lcd.backlight();
   	lcd.print("test");
  	update_LCD();
+ 	delay(1000);
  	Timer1.initialize(5000000); //set a timer for 5sec
   	Timer1.attachInterrupt(read_sensor); //call read_sensor()
 }
@@ -90,7 +94,10 @@ void loop(){
 	// read_sensor();
 
 	check_button();
+	// enc_temp1 = encoder_L.read(); //for debug
+	// enc_temp2 = encoder_R.read();
 	check_encoder();
+
 
 	if(fan_state_changed()){
 		update_led();
@@ -114,19 +121,48 @@ void update_LCD(){
 	//FanX  25.8C  63%
 	lcd.clear();
 	lcd.print("Fan"); lcd.print(lcd_page, DEC);
-	lcd.setCursor(6, 0); lcd.print(temperature_old[lcd_page-1]); 
+	if(temperature_old[lcd_page-1]<100){
+		lcd.setCursor(7, 0);
+	}
+	else
+		lcd.setCursor(6, 0);
+	lcd.print(temperature_old[lcd_page-1]); 
 	lcd.setCursor(8, 0); lcd.print(".");
 	lcd.setCursor(9, 0); lcd.print(temperature_old[lcd_page-1] % 10); 
 	lcd.setCursor(10, 0); lcd.print("C");
-	lcd.setCursor(13, 0); lcd.print(humidity_old[lcd_page-1]); 
+	if(humidity_old[lcd_page-1]<10){
+		lcd.setCursor(14, 0);
+	}
+	else
+		lcd.setCursor(13, 0);
+	lcd.print(humidity_old[lcd_page-1]); 
 	lcd.setCursor(15, 0); lcd.print("%");
 
-	lcd.setCursor(6, 1); lcd.print(temperature_set[lcd_page-1]);
+	if(temperature_set[lcd_page-1]<10){
+		lcd.setCursor(7, 1); lcd.print("0");
+		lcd.setCursor(8, 1);
+	}
+	else if(temperature_set[lcd_page-1]<100){
+		lcd.setCursor(7, 1);
+	}
+	else
+		lcd.setCursor(6, 1);
+	lcd.print(temperature_set[lcd_page-1]);
 	lcd.setCursor(8, 1); lcd.print(".");
 	lcd.setCursor(9, 1); lcd.print(temperature_set[lcd_page-1] % 10); 
 	lcd.setCursor(10, 1); lcd.print("C");
-	lcd.setCursor(13, 1); lcd.print(humidity_set[lcd_page-1]); 
+
+	if(humidity_set[lcd_page-1]<10){
+		lcd.setCursor(14, 1);
+	}
+	else
+		lcd.setCursor(13, 1);
+	lcd.print(humidity_set[lcd_page-1]); 
 	lcd.setCursor(15, 1); lcd.print("%");
+	
+	// lcd.setCursor(6, 1); lcd.print(enc_temp1); //for debug
+	// lcd.setCursor(13, 1); lcd.print(enc_temp2);
+
 	if(fan_state_auto[lcd_page-1] == 1){ //auto mode
 		lcd.setCursor(0,1); lcd.print("Auto");
 	}
@@ -145,43 +181,45 @@ void INT_page_button(){ //need debouncing
 	lcd_data_changed = 1;
 }
 void fan_speed_control(){ //interrupt by zero crossing 
-	// divider = !divider;
- //  	if(divider == HIGH){ //every zero point of 60Hz
- //  		for(uint8_t i; i<5; i++){
-  			
- //  			if(fan_speed_buf[i]>0){
- //  				turn_on();
-	// 			fan_speed_buf[i]--;
- //  			}
- //  			else{
- //  				if(fan)
- //  				fan_speed_buf[i] = fan_state_old[i];
- //  				turn_off();
- //  			}
+	divider = !divider;
+  	if(divider == HIGH){ //every zero point of 60Hz
+  		for(uint8_t i; i<5; i++){
+  			if(fan_speed_buf[i]>0){
+  				digitalWrite(fan_pin[i], HIGH); //turn_on();
+				fan_speed_buf[i]--;
+  			}
+  			else{ //fan_speed_buf == 0
+  				if(fan_state_old[i] == 1) //fan speed = low
+  					fan_speed_buf[i] = 1; //50%
+  				else if(fan_state_old[i] == 2) //fan speed = middle
+  					fan_speed_buf = 3; //75%
+  				else if(fan_state_old[i] == 3) //fan speed = hi(full)
+  					continue; //100%
+  				digitalWrite(fan_pin[i], LOW; //turn_off();
+  			}
+  		}
 
-  			
- //  		}
-  		
 
-
-    	// state = !state;  
-//  	}
+ 	}
 }
 void check_encoder(){
 	encoder_pos_L = encoder_L.read(); //temperature encoder
 	if(encoder_pos_old_L != encoder_pos_L){
-		temperature_set[lcd_page-1] += encoder_pos_L; //colud need to be divide by 2
+		int32_t temp_buf = (encoder_pos_L - encoder_pos_old_L);
+		temperature_set[lcd_page-1] += temp_buf;
 		encoder_pos_old_L = encoder_pos_L;
 		lcd_data_changed = 1;
 	}
 
 	encoder_pos_R = encoder_R.read(); //humidity encoder
 	if(encoder_pos_old_R != encoder_pos_R){
-		 humidity_set[lcd_page-1] += encoder_pos_R;
+		int8_t hum_buf = (encoder_pos_R - encoder_pos_old_R);
+		humidity_set[lcd_page-1] += hum_buf;
+		if(humidity_set[lcd_page-1]<0)
+			humidity_set[lcd_page-1] = 0;
 		encoder_pos_old_R = encoder_pos_R;
 		lcd_data_changed = 1;
 	}
-
 }
 void check_button(){
 	digitalWrite(mux_pin_s0, LOW);
