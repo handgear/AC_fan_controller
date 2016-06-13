@@ -75,6 +75,8 @@ void setup(){
 	pinMode(mux_pin_s1, OUTPUT);
 	pinMode(mux_pin_s2, OUTPUT);
 	pinMode(latchPin, OUTPUT);
+	Serial.begin(9600);
+	Serial2.begin(9600); //bluetooth
 
 	sensor1.begin();
 	sensor2.begin();
@@ -192,14 +194,12 @@ void fan_speed_control(){ //interrupt by zero crossing
   				if(fan_state_old[i] == 1) //fan speed = low
   					fan_speed_buf[i] = 1; //50%
   				else if(fan_state_old[i] == 2) //fan speed = middle
-  					fan_speed_buf = 3; //75%
+  					fan_speed_buf[i] = 3; //75%
   				else if(fan_state_old[i] == 3) //fan speed = hi(full)
   					continue; //100%
-  				digitalWrite(fan_pin[i], LOW; //turn_off();
+  				digitalWrite(fan_pin[i], LOW); //turn_off();
   			}
   		}
-
-
  	}
 }
 void check_encoder(){
