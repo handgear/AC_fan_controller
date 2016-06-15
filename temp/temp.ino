@@ -7,6 +7,7 @@
 
 #define TEM_THRESHOLD 10 //Temperature threshold
 #define HUM_THRESHOLD 3 //Humidity threshold
+#define SENSOR_DETECTION_INTERVAL 5000000 //5sec (microsec)
 //=========pin connections===========//
 const uint8_t fan_pin[5] = {22, 24, 26, 28, 30};
 const uint8_t sensor_pin[5] = {8, 9, 10, 11, 12};
@@ -27,7 +28,7 @@ int32_t temperature[5];
 int8_t humidity_old[5];
 int32_t temperature_old[5];
 int8_t humidity_set[5] = {41,42,43,44,45};
-int32_t temperature_set[5] = {10,260,270,280,290};
+int32_t temperature_set[5] = {250,260,270,280,290};
 
 uint8_t LedData1 = 0;
 uint8_t LedData2 = 0;
@@ -36,9 +37,14 @@ uint8_t button_state_old[6]; //fan 1,2,3,4,5 / fan page select
 
 uint8_t sensor_changed = 0;
 uint8_t lcd_data_changed = 0;
+String BT_input_str = "";  
+boolean BT_str_complete = false;
+char BT_command[3]={0,0,0};
+int incomingByte = 0;
+uint8_t BT_index = 0;
+//fan_state, fan_mode, temp_set, hum_set, temp_current, hum_current, (encoder_L. encoder_R)
+uint8_t need_to_send_BT = 0B00000000; 
 // uint8_t fan_state_changed = 0;
-int32_t enc_temp1; //for debuging
-int32_t enc_temp2;
 
 //use volatile for interrupt variables
 volatile uint8_t zero_cross_state = LOW;
@@ -53,6 +59,7 @@ volatile int32_t encoder_pos_L = 0;
 volatile int32_t encoder_pos_R = 0;
 volatile int32_t encoder_pos_old_L = 0;
 volatile int32_t encoder_pos_old_R = 0;
+volatile uint8_t sensor_num = 0;
 
 //=========object define===========//
 LiquidCrystal_I2C lcd(0x3F,16,2);
@@ -67,7 +74,7 @@ DHT sensor5(sensor_pin[4], DHT22);
 void setup(){
 	// pinMode(fan_pin[0], OUTPUT); 
   	pinMode(zero_cross_pin, INPUT_PULLUP);
-  	attachInterrupt(digitalPinToInterrupt(zero_cross_pin), fan_speed_control, FALLING);
+  	attachInterrupt(digitalPinToInterrupt(zero_cross_pin), INT_fan_speed_control, FALLING);
   	pinMode(page_button, INPUT_PULLUP);
   	attachInterrupt(digitalPinToInterrupt(page_button), INT_page_button, FALLING);
 	pinMode(mux_pin_y, INPUT);
@@ -75,8 +82,10 @@ void setup(){
 	pinMode(mux_pin_s1, OUTPUT);
 	pinMode(mux_pin_s2, OUTPUT);
 	pinMode(latchPin, OUTPUT);
+ 	pinMode(15, INPUT_PULLUP);  //rx 3 pullup
 	Serial.begin(9600);
-	Serial2.begin(9600); //bluetooth
+	Serial3.begin(9600); //bluetooth
+	BT_input_str.reserve(200); //allocation for string input by BT
 
 	sensor1.begin();
 	sensor2.begin();
@@ -88,17 +97,21 @@ void setup(){
   	lcd.print("test");
  	update_LCD();
  	delay(1000);
- 	Timer1.initialize(5000000); //set a timer for 5sec
-  	Timer1.attachInterrupt(read_sensor); //call read_sensor()
+ 	Timer1.initialize(SENSOR_DETECTION_INTERVAL); //set a timer ~8.3sec
+  	Timer1.attachInterrupt(INT_read_sensor); //call INT_read_sensor()
 }
 
 void loop(){
-	// read_sensor();
+	
 
 	check_button();
-	// enc_temp1 = encoder_L.read(); //for debug
-	// enc_temp2 = encoder_R.read();
 	check_encoder();
+
+	// if(BT_str_complete == true){//BT_str_complete == true
+	// 	update_BT(); //include BT_command[] clear
+	// 	// BT_input_str = ""; //clear string
+	// 	BT_str_complete = false;
+	// }
 
 
 	if(fan_state_changed()){
@@ -110,18 +123,263 @@ void loop(){
 		update_LCD();
 		lcd_data_changed = 0;
 	}
-	
 
-
+	if(need_to_send_BT > 0){
+		send_BT();
+		need_to_send_BT = 0;
+	}
 	
 	// delay(100);
   
 	
 }
+void update_BT(){
+	
 
+	// Serial.print(BT_command[0],DEC);
+ //    Serial.print(' ');
+ //    Serial.print(BT_command[1],DEC);
+ //    Serial.print(' ');
+ //    Serial.print(BT_command[2],DEC);
+ //    Serial.print('\n');
+
+	// //add temp/hum data process 
+	// for(uint8_t BT_index=0; BT_index<3; BT_index++){ //clear
+	// 	BT_command[BT_index] = 0;
+	// }
+	// BT_index = 0;
+}
+void serialEvent3() {//BT, check every loop
+
+	if(Serial3.available()){
+		BT_command[1] = Serial3.read();
+		Serial.print("BT command: ");
+		Serial.print(BT_command[1]);
+		Serial.print("\n");
+		
+	}     
+ 	//fan1
+  	if(BT_command[1] == '1' && fan_state_auto[0] == 0){
+  		if(fan_state[0] == 3)
+  			fan_state_auto[0] = 1;
+  		else
+			fan_state[0] += 1;
+  	}
+	else if(BT_command[1] == '1' && fan_state_auto[0] == 1){
+		fan_state_auto[0] = 0;
+		fan_state[0] = 0;
+	}
+	//fan2
+	if(BT_command[1] == '2' && fan_state_auto[1] == 0){
+  		if(fan_state[1] == 3)
+  			fan_state_auto[1] = 1;
+  		else
+			fan_state[1] += 1;
+  	}
+	else if(BT_command[1] == '2' && fan_state_auto[1] == 1){
+		fan_state_auto[1] = 0;
+		fan_state[1] = 0;
+	}
+	//fan3
+	if(BT_command[1] == '3' && fan_state_auto[2] == 0){
+  		if(fan_state[2] == 3)
+  			fan_state_auto[2] = 1;
+  		else
+			fan_state[2] += 1;
+  	}
+	else if(BT_command[1] == '3' && fan_state_auto[2] == 1){
+		fan_state_auto[2] = 0;
+		fan_state[2] = 0;
+	}
+	//fan4	
+	if(BT_command[1] == '4' && fan_state_auto[3] == 0){
+  		if(fan_state[3] == 3)
+  			fan_state_auto[3] = 1;
+  		else
+			fan_state[3] += 1;
+  	}
+	else if(BT_command[1] == '4' && fan_state_auto[3] == 1){
+		fan_state_auto[3] = 0;
+		fan_state[3] = 0;
+	}
+	//fan5
+	if(BT_command[1] == '5' && fan_state_auto[4] == 0){
+  		if(fan_state[4] == 3)
+  			fan_state_auto[4] = 1;
+  		else
+			fan_state[4] += 1;
+  	}
+	else if(BT_command[1] == '5' && fan_state_auto[4] == 1){
+		fan_state_auto[4] = 0;
+		fan_state[4] = 0;
+	}
+}
+void serialEvent() {//check every loop
+
+	if(Serial.available()){
+		BT_command[1] = Serial.read();
+		Serial.print("BT command: ");
+		Serial.print(BT_command[1]);
+		Serial.print("\n");
+		
+	}     
+ 	//fan1
+  	if(BT_command[1] == '1' && fan_state_auto[0] == 0){
+  		if(fan_state[0] == 3)
+  			fan_state_auto[0] = 1;
+  		else
+			fan_state[0] += 1;
+  	}
+	else if(BT_command[1] == '1' && fan_state_auto[0] == 1){
+		fan_state_auto[0] = 0;
+		fan_state[0] = 0;
+	}
+	//fan2
+	if(BT_command[1] == '2' && fan_state_auto[1] == 0){
+  		if(fan_state[1] == 3)
+  			fan_state_auto[1] = 1;
+  		else
+			fan_state[1] += 1;
+  	}
+	else if(BT_command[1] == '2' && fan_state_auto[1] == 1){
+		fan_state_auto[1] = 0;
+		fan_state[1] = 0;
+	}
+	//fan3
+	if(BT_command[1] == '3' && fan_state_auto[2] == 0){
+  		if(fan_state[2] == 3)
+  			fan_state_auto[2] = 1;
+  		else
+			fan_state[2] += 1;
+  	}
+	else if(BT_command[1] == '3' && fan_state_auto[2] == 1){
+		fan_state_auto[2] = 0;
+		fan_state[2] = 0;
+	}
+	//fan4	
+	if(BT_command[1] == '4' && fan_state_auto[3] == 0){
+  		if(fan_state[3] == 3)
+  			fan_state_auto[3] = 1;
+  		else
+			fan_state[3] += 1;
+  	}
+	else if(BT_command[1] == '4' && fan_state_auto[3] == 1){
+		fan_state_auto[3] = 0;
+		fan_state[3] = 0;
+	}
+	//fan5
+	if(BT_command[1] == '5' && fan_state_auto[4] == 0){
+  		if(fan_state[4] == 3)
+  			fan_state_auto[4] = 1;
+  		else
+			fan_state[4] += 1;
+  	}
+	else if(BT_command[1] == '5' && fan_state_auto[4] == 1){
+		fan_state_auto[4] = 0;
+		fan_state[4] = 0;
+	}
+
+	/////////////////////////////////////////////////////
+		//for(BT_index = 0; BT_index<3; BT_index++)
+		// while(Serial.available()){
+		// 	incomingByte = Serial.read();
+  //           BT_command[BT_index]=incomingByte;
+  //   		BT_index++;
+  //           if(incomingByte == '\n')
+  //           	BT_str_complete = true;
+            
+		// }
+		// BT_index = 0;
+        // Serial.print(BT_command[0],DEC);
+        // Serial.print(' ');
+        // Serial.print(BT_command[1],DEC);
+        // Serial.print(' ');
+        // Serial.print(BT_command[2],DEC);
+        // Serial.print('\n');
+   //      while(Serial.available() > 0){
+			// incomingByte = Serial.read();
+   //          BT_command[BT_index]=incomingByte;
+   //  		BT_index++;
+   //          if(BT_command[2] == '\n')
+   //          	BT_str_complete = true;
+            
+   //      }
+       
+
+  // while (Serial.available()) {
+  //   char inChar = (char)Serial.read();
+  //   BT_input_str += inChar;
+    
+  //   if (inChar == '\n') {
+  //     BT_str_complete = true;
+  //   }
+  // }
+
+}
+void send_BT(){
+	//fan state
+	uint8_t compare = 0;
+	compare = need_to_send_BT && 0B10000000;
+	if(compare){
+		Serial.print("fan state: ");
+		for(uint8_t i=0;i<5; i++){
+			Serial.print(fan_state[i]);
+			Serial.print(" ");
+		}
+		Serial.print("\n");
+	}
+	//auto mode or not
+	if(need_to_send_BT && 0B01000000){
+		Serial.print("fan mode: ");
+		for(uint8_t i=0;i<5; i++){
+			Serial.print(fan_state_auto[i]);
+			Serial.print(" ");
+		}
+		Serial.print("\n");
+	}	
+	//temperature set value
+	if(need_to_send_BT && 0B00100000){
+		Serial.print("Temperature set value: ");
+		for(uint8_t i=0;i<5; i++){
+			Serial.print(temperature_set[i]);
+			Serial.print(" ");
+		}
+		Serial.print("\n");	
+	}
+	//humidity set value
+	if(need_to_send_BT && 0B00010000){
+		Serial.print("Humidity set value: ");
+		for(uint8_t i=0;i<5; i++){
+			Serial.print(humidity_set[i]);
+			Serial.print(" ");
+		}
+		Serial.print("\n");
+	}
+	//current temperature
+	if(need_to_send_BT && 0B00001000){
+		Serial.print("Temperature current: ");
+		for(uint8_t i=0;i<5; i++){
+			Serial.print(temperature_old[i]);
+			Serial.print(" ");
+		}
+		Serial.print("\n");	
+	}
+	//current humidity
+	if(need_to_send_BT && 0B00000100){
+		Serial.print("Humidity current: ");
+		for(uint8_t i=0;i<5; i++){
+			Serial.print(humidity_old[i]);
+			Serial.print(" ");
+		}
+		Serial.print("\n");
+	}
+}
 void update_LCD(){
+	//exanple
 	//FanX  25.8C  63%
+	//Auto  24.2C  46%	
 	lcd.clear();
+	//first line
 	lcd.print("Fan"); lcd.print(lcd_page, DEC);
 	if(temperature_old[lcd_page-1]<100){
 		lcd.setCursor(7, 0);
@@ -132,6 +390,7 @@ void update_LCD(){
 	lcd.setCursor(8, 0); lcd.print(".");
 	lcd.setCursor(9, 0); lcd.print(temperature_old[lcd_page-1] % 10); 
 	lcd.setCursor(10, 0); lcd.print("C");
+
 	if(humidity_old[lcd_page-1]<10){
 		lcd.setCursor(14, 0);
 	}
@@ -139,7 +398,7 @@ void update_LCD(){
 		lcd.setCursor(13, 0);
 	lcd.print(humidity_old[lcd_page-1]); 
 	lcd.setCursor(15, 0); lcd.print("%");
-
+	//second line
 	if(temperature_set[lcd_page-1]<10){
 		lcd.setCursor(7, 1); lcd.print("0");
 		lcd.setCursor(8, 1);
@@ -161,16 +420,12 @@ void update_LCD(){
 		lcd.setCursor(13, 1);
 	lcd.print(humidity_set[lcd_page-1]); 
 	lcd.setCursor(15, 1); lcd.print("%");
-	
-	// lcd.setCursor(6, 1); lcd.print(enc_temp1); //for debug
-	// lcd.setCursor(13, 1); lcd.print(enc_temp2);
 
 	if(fan_state_auto[lcd_page-1] == 1){ //auto mode
 		lcd.setCursor(0,1); lcd.print("Auto");
 	}
 }
-
-void INT_page_button(){ //need debouncing
+void INT_page_button(){ 
 	static unsigned long last_interrupt_time = 0;
 	unsigned long interrupt_time = millis();
 	// If interrupts come faster than 200ms, assume it's a bounce and ignore
@@ -182,7 +437,7 @@ void INT_page_button(){ //need debouncing
 	last_interrupt_time = interrupt_time;
 	lcd_data_changed = 1;
 }
-void fan_speed_control(){ //interrupt by zero crossing 
+void INT_fan_speed_control(){ //interrupt by zero crossing 
 	divider = !divider;
   	if(divider == HIGH){ //every zero point of 60Hz
   		for(uint8_t i; i<5; i++){
@@ -202,6 +457,46 @@ void fan_speed_control(){ //interrupt by zero crossing
   		}
  	}
 }
+void INT_read_sensor(){//use _old values for display 
+	switch(sensor_num){
+		case 0:
+			humidity[0] = (int)sensor1.readHumidity();
+			temperature[0] = (int)(sensor1.readTemperature()*10);
+			break;
+		case 1:
+			humidity[1] = (int)sensor2.readHumidity();
+			temperature[1] = (int)(sensor2.readTemperature()*10);
+			break;
+		case 2:
+			humidity[2] = (int)sensor3.readHumidity();
+			temperature[2] = (int)(sensor3.readTemperature()*10);
+			break;
+		case 3:
+			humidity[3] = (int)sensor4.readHumidity();
+			temperature[3] = (int)(sensor4.readTemperature()*10);
+			break;
+		case 4:
+			humidity[4] = (int)sensor5.readHumidity();
+			temperature[4] = (int)(sensor5.readTemperature()*10);
+			break;
+	}
+
+	if(humidity[sensor_num] - humidity_old[sensor_num] > HUM_THRESHOLD || 
+			humidity[sensor_num] - humidity_old[sensor_num] < HUM_THRESHOLD){
+			humidity_old[sensor_num] = humidity[sensor_num];
+			lcd_data_changed = 1;
+			need_to_send_BT = need_to_send_BT | 0B00001000; //update current temperature
+	}
+	if(temperature[sensor_num] - temperature_old[sensor_num] > TEM_THRESHOLD || 
+		temperature[sensor_num] - temperature_old[sensor_num] < TEM_THRESHOLD){
+		temperature_old[sensor_num] = temperature[sensor_num];
+		lcd_data_changed = 1;
+		need_to_send_BT = need_to_send_BT | 0B00000100; //update current humidity
+	}
+	sensor_num++;
+	if(sensor_num == 5)
+		sensor_num = 0;
+}
 void check_encoder(){
 	encoder_pos_L = encoder_L.read(); //temperature encoder
 	if(encoder_pos_old_L != encoder_pos_L){
@@ -209,6 +504,7 @@ void check_encoder(){
 		temperature_set[lcd_page-1] += temp_buf;
 		encoder_pos_old_L = encoder_pos_L;
 		lcd_data_changed = 1;
+		need_to_send_BT = need_to_send_BT | 0B00100000; //update temperature set value
 	}
 
 	encoder_pos_R = encoder_R.read(); //humidity encoder
@@ -219,6 +515,7 @@ void check_encoder(){
 			humidity_set[lcd_page-1] = 0;
 		encoder_pos_old_R = encoder_pos_R;
 		lcd_data_changed = 1;
+		need_to_send_BT = need_to_send_BT | 0B00010000; //update humidity set value
 	}
 }
 void check_button(){
@@ -253,11 +550,13 @@ void check_button(){
 				fan_state_auto[i] = 1;
 				fan_state[i] = fan_state_old[i];
 				lcd_data_changed = 1;
+				need_to_send_BT = need_to_send_BT | 0B01000000; //update fan mode
 			} 
 			else if(fan_state_auto[i] == 1){ //exit auto mode
 				fan_state_auto[i] = 0;
 				fan_state[i] = 0;
 				lcd_data_changed = 1;
+				need_to_send_BT = need_to_send_BT | 0B01000000; //update fan mode
 			}
 			else{
 				fan_state[i] = fan_state[i] + 1;
@@ -266,32 +565,6 @@ void check_button(){
 		button_state_old[i] = button_state[i];
 	}
 
-}
-void read_sensor(){//use _old values for display 
-	humidity[0] = (int)sensor1.readHumidity();
-	humidity[1] = (int)sensor2.readHumidity();
-	humidity[2] = (int)sensor3.readHumidity();
-	humidity[3] = (int)sensor4.readHumidity();
-	humidity[4] = (int)sensor5.readHumidity();
-	temperature[0] = (int)(sensor1.readTemperature()*10);
-	temperature[1] = (int)(sensor2.readTemperature()*10);
-	temperature[2] = (int)(sensor3.readTemperature()*10);
-	temperature[3] = (int)(sensor4.readTemperature()*10);
-	temperature[4] = (int)(sensor5.readTemperature()*10);
-
-	for(int i=0; i<5; i++){//need to check overflow error
-		//the conditions would need to be fixed
-		if(humidity[i] - humidity_old[i] > HUM_THRESHOLD || 
-			humidity[i] - humidity_old[i] < HUM_THRESHOLD){
-			humidity_old[i] = humidity[i];
-			lcd_data_changed = 1;
-		}
-		if(temperature[i] - temperature_old[i] > TEM_THRESHOLD || 
-			temperature[i] - temperature_old[i] < TEM_THRESHOLD){
-			temperature_old[i] = temperature[i];
-			lcd_data_changed = 1;
-		}
-	}
 }
 uint8_t fan_state_changed(){
 	if( fan_state[0] != fan_state_old[0] || 
@@ -305,6 +578,7 @@ uint8_t fan_state_changed(){
 		fan_state_old[2] = fan_state[2];
 		fan_state_old[3] = fan_state[3];
 		fan_state_old[4] = fan_state[4];
+		need_to_send_BT = need_to_send_BT | 0B10000000; //update fan state
 		return 1;
 	}
 	else
