@@ -4,6 +4,7 @@
 #include <LiquidCrystal_I2C.h>
 #include <Encoder.h>
 #include <DHT.h>
+#include <EEPROM.h>
 
 #define TEM_THRESHOLD 10 //Temperature threshold
 #define HUM_THRESHOLD 3 //Humidity threshold
@@ -23,6 +24,7 @@ const uint8_t clockPin = 40; //SH_CP of 74HC595
 const uint8_t dataPin = 38; //DS of 74HC595
 
 //=========global variables===========//
+// int8_t humidity_EEPROM[5] = {40,41,42,43,44};
 int8_t humidity[5]; 
 int32_t temperature[5];
 int8_t humidity_old[5];
@@ -96,6 +98,7 @@ void setup(){
  	lcd.backlight();
   	lcd.print("booting...");
   	read_sensor_INIT();
+  	set_value_INIT();
   	update_led();
  	update_LCD();
  	delay(300);
@@ -129,6 +132,14 @@ void loop(){
 	// delay(100);
   
 	
+}
+void set_value_INIT(){
+	uint8_t check = EEPROM.read(0);
+	if(check == 1){
+		for(uint8_t i=0;i<5;i++){
+	      humidity_set[i] = EEPROM.read(i+1);
+	    }
+	}
 }
 void fan_auto_controll(){
 	for(uint8_t i=0;i<5;i++){
@@ -525,6 +536,9 @@ void check_encoder(){
 		encoder_pos_old_R = encoder_pos_R;
 		lcd_data_changed = 1;
 		need_to_send_BT = need_to_send_BT | 0B00010000; //update humidity set value
+		
+ 		EEPROM.write(lcd_page, humidity_set[lcd_page-1]); //lcd_page-1 +1
+  		EEPROM.write(0, 1);//set update flag
 	}
 }
 void check_button(){
