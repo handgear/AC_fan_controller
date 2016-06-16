@@ -429,33 +429,34 @@ void INT_read_sensor(){//use _old values for display
 			temperature[4] = (int)(sensor5.readTemperature()*10);
 			break;
 	}
+	//update current humidity
 	if(humidity[sensor_num] - humidity_old[sensor_num] > 0){
 		if(humidity[sensor_num] - humidity_old[sensor_num] > HUM_THRESHOLD){
 			humidity_old[sensor_num] = humidity[sensor_num];
 			lcd_data_changed = 1;
-			need_to_send_BT = need_to_send_BT | 0B00001000; //update current humidity
+			need_to_send_BT = need_to_send_BT | 0B00001000; 
 		}
 	}
 	else if(humidity[sensor_num] - humidity_old[sensor_num] < 0){
 		if(humidity_old[sensor_num] - humidity[sensor_num] > HUM_THRESHOLD){
 			humidity_old[sensor_num] = humidity[sensor_num];
 			lcd_data_changed = 1;
-			need_to_send_BT = need_to_send_BT | 0B00001000; //update current humidity
+			need_to_send_BT = need_to_send_BT | 0B00001000; 
 		}
 	}
-
+	//update current temperature
 	if(temperature[sensor_num] - temperature_old[sensor_num] > 0){
 		if(temperature[sensor_num] - temperature_old[sensor_num] > TEM_THRESHOLD){
 			temperature_old[sensor_num] = temperature[sensor_num];
 			lcd_data_changed = 1;
-			need_to_send_BT = need_to_send_BT | 0B00000100; //update current temperature
+			need_to_send_BT = need_to_send_BT | 0B00000100; 
 		}
 	}
 	else if(temperature[sensor_num] - temperature_old[sensor_num] < 0){
 		if(temperature_old[sensor_num] - temperature[sensor_num] > TEM_THRESHOLD){
 			temperature_old[sensor_num] = temperature[sensor_num];
 			lcd_data_changed = 1;
-			need_to_send_BT = need_to_send_BT | 0B00000100; //update current temperature
+			need_to_send_BT = need_to_send_BT | 0B00000100; 
 		}
 	}
 	sensor_num++;
