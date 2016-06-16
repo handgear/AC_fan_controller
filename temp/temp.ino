@@ -37,8 +37,8 @@ uint8_t button_state_old[6]; //fan 1,2,3,4,5 / fan page select
 
 uint8_t sensor_changed = 0;
 uint8_t lcd_data_changed = 0;
-String BT_input_str = "";  
-boolean BT_str_complete = false;
+// String BT_input_str = "";  
+// boolean BT_str_complete = false;
 char BT_command[3]={0,0,0};
 int incomingByte = 0;
 uint8_t BT_index = 0;
@@ -85,7 +85,7 @@ void setup(){
  	pinMode(15, INPUT_PULLUP);  //rx 3 pullup
 	Serial.begin(9600);
 	Serial3.begin(9600); //bluetooth
-	BT_input_str.reserve(200); //allocation for string input by BT
+	// BT_input_str.reserve(200); //allocation for string input by BT
 
 	sensor1.begin();
 	sensor2.begin();
@@ -94,9 +94,11 @@ void setup(){
 	sensor5.begin();
 	lcd.init();
  	lcd.backlight();
-  	lcd.print("test");
+  	lcd.print("booting...");
+  	read_sensor_INIT();
+  	update_led();
  	update_LCD();
- 	delay(1000);
+ 	delay(300);
  	Timer1.initialize(SENSOR_DETECTION_INTERVAL); //set a timer ~8.3sec
   	Timer1.attachInterrupt(INT_read_sensor); //call INT_read_sensor()
 }
@@ -405,6 +407,29 @@ void INT_fan_speed_control(){ //interrupt by zero crossing
   			}
   		}
  	}
+}
+void read_sensor_INIT(){
+	humidity[0] = (int)sensor1.readHumidity();
+	temperature[0] = (int)(sensor1.readTemperature()*10);
+	delay(300);
+	humidity[1] = (int)sensor2.readHumidity();
+	temperature[1] = (int)(sensor2.readTemperature()*10);
+	delay(300);
+	humidity[2] = (int)sensor3.readHumidity();
+	temperature[2] = (int)(sensor3.readTemperature()*10);
+	delay(300);
+	humidity[3] = (int)sensor4.readHumidity();
+	temperature[3] = (int)(sensor4.readTemperature()*10);
+	delay(300);
+	humidity[4] = (int)sensor5.readHumidity();
+	temperature[4] = (int)(sensor5.readTemperature()*10);
+
+	for(uint8_t i=0; i<5; i++){
+		humidity_old[i] = humidity[i];
+		temperature_old[i] = temperature[i];
+	}
+	lcd_data_changed = 1;
+	need_to_send_BT = need_to_send_BT | 0B00001100; 
 }
 void INT_read_sensor(){//use _old values for display 
 	switch(sensor_num){
