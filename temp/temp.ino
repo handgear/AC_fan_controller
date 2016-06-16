@@ -119,6 +119,7 @@ void loop(){
 
 	if(need_to_send_BT > 0){
 		send_BT();
+		send_serial();
 		need_to_send_BT = 0;
 	}
 	
@@ -261,6 +262,64 @@ void send_BT(){
 	uint8_t compare = 0;
 	compare = need_to_send_BT && 0B10000000;
 	if(compare){
+		Serial3.print("fan state: ");
+		for(uint8_t i=0;i<5; i++){
+			Serial3.print(fan_state[i]);
+			Serial3.print(" ");
+		}
+		Serial3.print("\n");
+	}
+	//auto mode or not
+	if(need_to_send_BT && 0B01000000){
+		Serial3.print("fan mode: ");
+		for(uint8_t i=0;i<5; i++){
+			Serial3.print(fan_state_auto[i]);
+			Serial3.print(" ");
+		}
+		Serial3.print("\n");
+	}	
+	//temperature set value
+	if(need_to_send_BT && 0B00100000){
+		Serial3.print("Temperature set value: ");
+		for(uint8_t i=0;i<5; i++){
+			Serial3.print(temperature_set[i]);
+			Serial3.print(" ");
+		}
+		Serial3.print("\n");	
+	}
+	//humidity set value
+	if(need_to_send_BT && 0B00010000){
+		Serial3.print("Humidity set value: ");
+		for(uint8_t i=0;i<5; i++){
+			Serial3.print(humidity_set[i]);
+			Serial3.print(" ");
+		}
+		Serial3.print("\n");
+	}
+	//current temperature
+	if(need_to_send_BT && 0B00001000){
+		Serial3.print("Temperature current: ");
+		for(uint8_t i=0;i<5; i++){
+			Serial3.print(temperature_old[i]);
+			Serial3.print(" ");
+		}
+		Serial3.print("\n");	
+	}
+	//current humidity
+	if(need_to_send_BT && 0B00000100){
+		Serial3.print("Humidity current: ");
+		for(uint8_t i=0;i<5; i++){
+			Serial3.print(humidity_old[i]);
+			Serial3.print(" ");
+		}
+		Serial3.print("\n");
+	}
+}
+void send_serial(){
+	//fan state
+	uint8_t compare = 0;
+	compare = need_to_send_BT && 0B10000000;
+	if(compare){
 		Serial.print("fan state: ");
 		for(uint8_t i=0;i<5; i++){
 			Serial.print(fan_state[i]);
@@ -314,57 +373,7 @@ void send_BT(){
 		Serial.print("\n");
 	}
 }
-void update_LCD(){
-	//exanple
-	//FanX  25.8C  63%
-	//Auto  24.2C  46%	
-	lcd.clear();
-	//first line
-	lcd.print("Fan"); lcd.print(lcd_page, DEC);
-	if(temperature_old[lcd_page-1]<100){
-		lcd.setCursor(7, 0);
-	}
-	else
-		lcd.setCursor(6, 0);
-	lcd.print(temperature_old[lcd_page-1]); 
-	lcd.setCursor(8, 0); lcd.print(".");
-	lcd.setCursor(9, 0); lcd.print(temperature_old[lcd_page-1] % 10); 
-	lcd.setCursor(10, 0); lcd.print("C");
-
-	if(humidity_old[lcd_page-1]<10){
-		lcd.setCursor(14, 0);
-	}
-	else
-		lcd.setCursor(13, 0);
-	lcd.print(humidity_old[lcd_page-1]); 
-	lcd.setCursor(15, 0); lcd.print("%");
-	//second line
-	if(temperature_set[lcd_page-1]<10){
-		lcd.setCursor(7, 1); lcd.print("0");
-		lcd.setCursor(8, 1);
-	}
-	else if(temperature_set[lcd_page-1]<100){
-		lcd.setCursor(7, 1);
-	}
-	else
-		lcd.setCursor(6, 1);
-	lcd.print(temperature_set[lcd_page-1]);
-	lcd.setCursor(8, 1); lcd.print(".");
-	lcd.setCursor(9, 1); lcd.print(temperature_set[lcd_page-1] % 10); 
-	lcd.setCursor(10, 1); lcd.print("C");
-
-	if(humidity_set[lcd_page-1]<10){
-		lcd.setCursor(14, 1);
-	}
-	else
-		lcd.setCursor(13, 1);
-	lcd.print(humidity_set[lcd_page-1]); 
-	lcd.setCursor(15, 1); lcd.print("%");
-
-	if(fan_state_auto[lcd_page-1] == 1){ //auto mode
-		lcd.setCursor(0,1); lcd.print("Auto");
-	}
-}
+//===========Interrupt funtions===============//
 void INT_page_button(){ 
 	static unsigned long last_interrupt_time = 0;
 	unsigned long interrupt_time = millis();
@@ -420,18 +429,34 @@ void INT_read_sensor(){//use _old values for display
 			temperature[4] = (int)(sensor5.readTemperature()*10);
 			break;
 	}
-
-	if(humidity[sensor_num] - humidity_old[sensor_num] > HUM_THRESHOLD || 
-			humidity[sensor_num] - humidity_old[sensor_num] < HUM_THRESHOLD){
+	if(humidity[sensor_num] - humidity_old[sensor_num] > 0){
+		if(humidity[sensor_num] - humidity_old[sensor_num] > HUM_THRESHOLD){
 			humidity_old[sensor_num] = humidity[sensor_num];
 			lcd_data_changed = 1;
-			need_to_send_BT = need_to_send_BT | 0B00001000; //update current temperature
+			need_to_send_BT = need_to_send_BT | 0B00001000; //update current humidity
+		}
 	}
-	if(temperature[sensor_num] - temperature_old[sensor_num] > TEM_THRESHOLD || 
-		temperature[sensor_num] - temperature_old[sensor_num] < TEM_THRESHOLD){
-		temperature_old[sensor_num] = temperature[sensor_num];
-		lcd_data_changed = 1;
-		need_to_send_BT = need_to_send_BT | 0B00000100; //update current humidity
+	else if(humidity[sensor_num] - humidity_old[sensor_num] < 0){
+		if(humidity_old[sensor_num] - humidity[sensor_num] > HUM_THRESHOLD){
+			humidity_old[sensor_num] = humidity[sensor_num];
+			lcd_data_changed = 1;
+			need_to_send_BT = need_to_send_BT | 0B00001000; //update current humidity
+		}
+	}
+
+	if(temperature[sensor_num] - temperature_old[sensor_num] > 0){
+		if(temperature[sensor_num] - temperature_old[sensor_num] > TEM_THRESHOLD){
+			temperature_old[sensor_num] = temperature[sensor_num];
+			lcd_data_changed = 1;
+			need_to_send_BT = need_to_send_BT | 0B00000100; //update current temperature
+		}
+	}
+	else if(temperature[sensor_num] - temperature_old[sensor_num] < 0){
+		if(temperature_old[sensor_num] - temperature[sensor_num] > TEM_THRESHOLD){
+			temperature_old[sensor_num] = temperature[sensor_num];
+			lcd_data_changed = 1;
+			need_to_send_BT = need_to_send_BT | 0B00000100; //update current temperature
+		}
 	}
 	sensor_num++;
 	if(sensor_num == 5)
@@ -523,6 +548,58 @@ uint8_t fan_state_changed(){
 	}
 	else
 		return 0;
+}
+//=====================update display==========================//
+void update_LCD(){
+	//exanple
+	//FanX  25.8C  63%
+	//Auto  24.2C  46%	
+	lcd.clear();
+	//first line
+	lcd.print("Fan"); lcd.print(lcd_page, DEC);
+	if(temperature_old[lcd_page-1]<100){
+		lcd.setCursor(7, 0);
+	}
+	else
+		lcd.setCursor(6, 0);
+	lcd.print(temperature_old[lcd_page-1]); 
+	lcd.setCursor(8, 0); lcd.print(".");
+	lcd.setCursor(9, 0); lcd.print(temperature_old[lcd_page-1] % 10); 
+	lcd.setCursor(10, 0); lcd.print("C");
+
+	if(humidity_old[lcd_page-1]<10){
+		lcd.setCursor(14, 0);
+	}
+	else
+		lcd.setCursor(13, 0);
+	lcd.print(humidity_old[lcd_page-1]); 
+	lcd.setCursor(15, 0); lcd.print("%");
+	//second line
+	if(temperature_set[lcd_page-1]<10){
+		lcd.setCursor(7, 1); lcd.print("0");
+		lcd.setCursor(8, 1);
+	}
+	else if(temperature_set[lcd_page-1]<100){
+		lcd.setCursor(7, 1);
+	}
+	else
+		lcd.setCursor(6, 1);
+	lcd.print(temperature_set[lcd_page-1]);
+	lcd.setCursor(8, 1); lcd.print(".");
+	lcd.setCursor(9, 1); lcd.print(temperature_set[lcd_page-1] % 10); 
+	lcd.setCursor(10, 1); lcd.print("C");
+
+	if(humidity_set[lcd_page-1]<10){
+		lcd.setCursor(14, 1);
+	}
+	else
+		lcd.setCursor(13, 1);
+	lcd.print(humidity_set[lcd_page-1]); 
+	lcd.setCursor(15, 1); lcd.print("%");
+
+	if(fan_state_auto[lcd_page-1] == 1){ //auto mode
+		lcd.setCursor(0,1); lcd.print("Auto");
+	}
 }
 void update_led(){
   if(fan_state[0]==0)
