@@ -107,13 +107,6 @@ void loop(){
 	check_button();
 	check_encoder();
 
-	// if(BT_str_complete == true){//BT_str_complete == true
-	// 	update_BT(); //include BT_command[] clear
-	// 	// BT_input_str = ""; //clear string
-	// 	BT_str_complete = false;
-	// }
-
-
 	if(fan_state_changed()){
 		update_led();
 		update_LCD();
@@ -133,30 +126,15 @@ void loop(){
   
 	
 }
-void update_BT(){
-	
-
-	// Serial.print(BT_command[0],DEC);
- //    Serial.print(' ');
- //    Serial.print(BT_command[1],DEC);
- //    Serial.print(' ');
- //    Serial.print(BT_command[2],DEC);
- //    Serial.print('\n');
-
-	// //add temp/hum data process 
-	// for(uint8_t BT_index=0; BT_index<3; BT_index++){ //clear
-	// 	BT_command[BT_index] = 0;
-	// }
-	// BT_index = 0;
-}
 void serialEvent3() {//BT, check every loop
 
 	if(Serial3.available()){
 		BT_command[1] = Serial3.read();
-		Serial.print("BT command: ");
-		Serial.print(BT_command[1]);
-		Serial.print("\n");
-		
+		if(BT_command[1] != '\n'){
+			Serial3.print("BT command: ");
+			Serial3.print(BT_command[1]);
+			Serial3.print("\n");
+		}
 	}     
  	//fan1
   	if(BT_command[1] == '1' && fan_state_auto[0] == 0){
@@ -221,7 +199,6 @@ void serialEvent() {//check every loop
 		Serial.print("BT command: ");
 		Serial.print(BT_command[1]);
 		Serial.print("\n");
-		
 	}     
  	//fan1
   	if(BT_command[1] == '1' && fan_state_auto[0] == 0){
@@ -278,43 +255,6 @@ void serialEvent() {//check every loop
 		fan_state_auto[4] = 0;
 		fan_state[4] = 0;
 	}
-
-	/////////////////////////////////////////////////////
-		//for(BT_index = 0; BT_index<3; BT_index++)
-		// while(Serial.available()){
-		// 	incomingByte = Serial.read();
-  //           BT_command[BT_index]=incomingByte;
-  //   		BT_index++;
-  //           if(incomingByte == '\n')
-  //           	BT_str_complete = true;
-            
-		// }
-		// BT_index = 0;
-        // Serial.print(BT_command[0],DEC);
-        // Serial.print(' ');
-        // Serial.print(BT_command[1],DEC);
-        // Serial.print(' ');
-        // Serial.print(BT_command[2],DEC);
-        // Serial.print('\n');
-   //      while(Serial.available() > 0){
-			// incomingByte = Serial.read();
-   //          BT_command[BT_index]=incomingByte;
-   //  		BT_index++;
-   //          if(BT_command[2] == '\n')
-   //          	BT_str_complete = true;
-            
-   //      }
-       
-
-  // while (Serial.available()) {
-  //   char inChar = (char)Serial.read();
-  //   BT_input_str += inChar;
-    
-  //   if (inChar == '\n') {
-  //     BT_str_complete = true;
-  //   }
-  // }
-
 }
 void send_BT(){
 	//fan state
