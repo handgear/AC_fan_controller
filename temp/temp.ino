@@ -102,13 +102,14 @@ void setup(){
  	Timer1.initialize(SENSOR_DETECTION_INTERVAL); //set a timer ~8.3sec
   	Timer1.attachInterrupt(INT_read_sensor); //call INT_read_sensor()
 }
-
 void loop(){
 	
 
 	check_button();
 	check_encoder();
+	fan_auto_controll(); //change fan state which is in auto mode
 
+	
 	if(fan_state_changed()){
 		update_led();
 		update_LCD();
@@ -120,13 +121,28 @@ void loop(){
 	}
 
 	if(need_to_send_BT > 0){
-		send_BT();
+		// send_BT();
 		send_serial();
 		need_to_send_BT = 0;
 	}
 	
 	// delay(100);
   
+	
+}
+void fan_auto_controll(){
+	for(uint8_t i=0;i<5;i++){
+		if(fan_state_auto[i] == 1){
+			if(humidity_old[i] > humidity_set[i]){
+				fan_state[i] = 3;
+			}
+			else if(humidity_old[i] <= humidity_set[i]){
+				fan_state[i] = 0;
+			}
+		}
+		// fan_state_old[i] = fan_state[i];
+	}
+	// update_led();
 	
 }
 void serialEvent3() {//BT, check every loop
@@ -391,18 +407,20 @@ void INT_page_button(){
 void INT_fan_speed_control(){ //interrupt by zero crossing 
 	divider = !divider;
   	if(divider == HIGH){ //every zero point of 60Hz
-  		for(uint8_t i; i<5; i++){
+  		for(uint8_t i=0; i<5; i++){
   			if(fan_speed_buf[i]>0){
   				digitalWrite(fan_pin[i], HIGH); //turn_on();
 				fan_speed_buf[i]--;
   			}
   			else{ //fan_speed_buf == 0
+  				if(fan_state_old[i] == 0)
+  					digitalWrite(fan_pin[i], LOW); //turn_off();
   				if(fan_state_old[i] == 1) //fan speed = low
   					fan_speed_buf[i] = 1; //50%
   				else if(fan_state_old[i] == 2) //fan speed = middle
-  					fan_speed_buf[i] = 3; //75%
+  					fan_speed_buf[i] = 4; //80%
   				else if(fan_state_old[i] == 3) //fan speed = hi(full)
-  					continue; //100%
+  					fan_speed_buf[i] = 127; //100%
   				digitalWrite(fan_pin[i], LOW); //turn_off();
   			}
   		}
@@ -539,7 +557,7 @@ void check_button(){
 		if(button_state[i] == HIGH && button_state_old[i] == LOW){
 			if(fan_state[i] == 3 && fan_state_auto[i] == 0){ //enter auto mode
 				fan_state_auto[i] = 1;
-				fan_state[i] = fan_state_old[i];
+				// fan_state[i] = fan_state_old[i];
 				lcd_data_changed = 1;
 				need_to_send_BT = need_to_send_BT | 0B01000000; //update fan mode
 			} 
